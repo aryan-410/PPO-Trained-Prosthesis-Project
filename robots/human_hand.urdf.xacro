@@ -1,0 +1,232 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+	<xacro:arg name="C:/Users/aryan/OneDrive/Documents/Python/PPOTrainedProsthetics/human_hand/model/properties.yaml"/>
+	<xacro:arg name="mapping_file" default="C:/Users/aryan/OneDrive/Documents/Python/PPOTrainedProsthetics/human_hand/model/taxel.yaml"/>
+
+	<!--
+	    HUMAN HAND MODEL v 0.1
+	    urdf derived from human Pisa SoftHand
+	    author Guillaume Walck, Robert Haschke
+	    meshes from GrabCAD, author Joerg Schmit
+	    original CAD model available at: https://grabcad.com/library/human-left-hand/
+	-->
+
+	<xacro:include filename="C:/Users/aryan/OneDrive/Documents/Python/PPOTrainedProsthetics/human_hand/model/materials.urdf.xacro"/>
+
+	<!-- a segment is composed of a joint and the attached link -->
+	<xacro:macro name="segment"
+	             params="link_prefix:=^|'' joint_prefix:=^|''
+	                     finger:=^ joint link parent reflect:=^ *origin *axis
+	                     synergy_weight:=${None} mesh:=1 use_synergy:=^
+	                     scale_factor:=^|1.0">
+		<xacro:property name="props" value="${joint_props[finger][joint]}"/>
+
+
+		<joint name="${joint_prefix}${finger}_${joint}_joint" type="revolute">
+			<xacro:insert_block name="origin"/>
+			<parent link="${link_prefix}${parent}"/>
+			<child link="${link_prefix}${finger}_${link}_link"/>
+			<xacro:insert_block name="axis"/>
+			<limit lower="${props['bounds'][0]*pi/180}" upper="${props['bounds'][1]*pi/180}"
+			       effort="${props['effort']}" velocity="${props['velocity']}"/>
+			<dynamics damping="${props['damping']}" friction="${props['friction']}"/>
+			<xacro:if value="${use_synergy}">
+				<xacro:if value="${synergy_weight is None}">
+					<xacro:property name="synergy_weight" value="${synergies[finger][joint]}"/>
+				</xacro:if>
+				<mimic joint="${synergy_joint}"
+				       multiplier="${synergy_weight*(props['bounds'][1] - props['bounds'][0])*pi/180}"/>
+			</xacro:if>
+		</joint>
+		<link name="${link_prefix}${finger}_${link}_link">
+			<xacro:if value="${mesh != 0}">
+				<visual>
+					<geometry>
+						<xacro:if value="${mesh == 1}">
+							<xacro:property name="mesh" value="${finger}_${link}"/>
+						</xacro:if>
+						<mesh filename="C:/Users/aryan/OneDrive/Documents/Python/PPOTrainedProsthetics/human_hand/model/meshes/${mesh}.stl"
+						      scale="${scale_factor*0.001*reflect} ${scale_factor*0.001} ${scale_factor*0.001}"/>
+					</geometry>
+					<material name="HumanHand/Skin" />
+				</visual>
+			</xacro:if>
+		</link>
+	</xacro:macro>
+
+	<!-- FINGER MODEL -->
+	<xacro:macro name="finger"
+	             params="parent link_prefix:=^|'' joint_prefix:=^|''
+	                     finger reflect:=^ *origin joint_props:=${properties['joints']}">
+		<xacro:property name="proximal_len" value="${properties['link_lengths'][finger]['proximal']}"/>
+		<xacro:property name="middle_len" value="${properties['link_lengths'][finger]['middle']}"/>
+
+		<!-- KNUCKLE -->
+
+		<xacro:segment joint="abduction" link="knuckle" parent="${parent}" mesh="0">
+			<xacro:insert_block name="origin"/>
+			<axis xyz="0 ${-1*reflect} 0" />
+		</xacro:segment>
+
+		<!-- PROXIMAL PHALANGE -->
+
+		<xacro:segment joint="proximal" link="proximal" parent="${finger}_knuckle_link">
+			<origin xyz="0 0 0" rpy="0 0 0"/>
+			<axis xyz="1 0 0" />
+		</xacro:segment>
+
+		<!-- MIDDLE PHALANGE -->
+
+		<xacro:segment joint="middle" link="middle" parent="${finger}_proximal_link">
+			<origin xyz="0 0 ${proximal_len*scale_factor}" rpy="0 0 0"/>
+			<axis xyz="1 0 0" />
+		</xacro:segment>
+
+		<!-- DISTAL PHALANGE -->
+
+		<xacro:segment joint="distal" link="distal" parent="${finger}_middle_link">
+			<origin xyz="0 0 ${middle_len*scale_factor}" rpy="0 0 0"/>
+			<axis xyz="1 0 0" />
+		</xacro:segment>
+	</xacro:macro>
+
+	<!-- THUMB MODEL -->
+	<xacro:macro name="thumb"
+	             params="parent link_prefix:=^|'' joint_prefix:=^|''
+	                     finger:='thumb' reflect:=^ *origin joint_props:=${properties['joints']}">
+		<xacro:property name="proximal_len" value="${properties['link_lengths'][finger]['proximal']}"/>
+		<xacro:property name="middle_len" value="${properties['link_lengths'][finger]['middle']}"/>
+
+		<!-- KNUCKLE -->
+
+		<xacro:segment joint="abduction" link="knuckle" parent="${parent}"
+		               mesh="False" use_synergy="0">
+			<xacro:insert_block name="origin"/>
+			<axis xyz="1 0 0" />
+		</xacro:segment>
+
+		<!-- PROXIMAL PHALANGE -->
+
+		<xacro:segment joint="proximal" link="proximal" parent="${finger}_knuckle_link">
+			<origin xyz="0 0 0" rpy="0 0 0" />
+			<axis xyz="0 ${-1*reflect} 0" />
+		</xacro:segment>
+
+		<!-- MIDDLE PHALANGE -->
+
+		<xacro:segment joint="middle" link="middle" parent="${finger}_proximal_link">
+			<origin xyz="0 0 ${proximal_len*scale_factor}" rpy="0 0 0"/>
+			<axis xyz="0 ${-1*reflect} 0" />
+		</xacro:segment>
+
+		<!-- DISTAL PHALANGE -->
+
+		<xacro:segment joint="distal" link="distal" parent="${finger}_middle_link">
+			<origin xyz="0 0 ${middle_len*scale_factor}" rpy="0 0 0"/>
+			<axis xyz="0 ${-1*reflect} 0" />
+		</xacro:segment>
+	</xacro:macro>
+
+
+	<!-- HUMAN HAND MODEL -->
+	<xacro:macro name="human_hand"
+	             params="parent link_prefix:=^|'' joint_prefix:=^|'' scale:=1.0
+	                     use_synergy side:='' tactile_mapping:='' tactile_channel:='tactile glove' *origin">
+		<!-- load kinematics properties -->
+		<xacro:property name="package" value="$(find human_hand_description)"/>
+		<xacro:property name="properties" value="${xacro.load_yaml(xacro.arg('property_file'))}" />
+		<xacro:property name="synergies" value="${properties['synergies']}"/>
+		<xacro:property name="scale_factor" value="${scale}"/>
+
+		<!-- load taxel mapping -->
+		<xacro:property name="mapping" value="${None}"/>
+		<xacro:if value="${tactile_mapping not in ['', '-']}">
+			<xacro:property name="mapping" value="${xacro.load_yaml(xacro.arg('mapping_file'))[tactile_mapping]}" />
+			<!-- if side is not yet specified, try to fetch it from the tactile_mapping dictionary -->
+			<xacro:if value="${side not in ['left', 'right']}">
+				<xacro:property name="side" value="${mapping.get('handedness','right')}"/>
+			</xacro:if>
+			<xacro:property name="layout" value="${mapping['layout']}"/>
+			<!-- As we share taxel meshes across all layouts, but L1 doesn't have some taxel indices,
+			     we map L1 taxel indices onto corresponding L2/L3 taxel indices here -->
+			<xacro:if value="${layout == 'L1'}">
+				<xacro:if value="${mapping.update([(k, mapping.get(v,-1)) for k, v in [('tmm', 'tmo'), ('ptmp', 'ptop'), ('ptmd', 'ptod')]])}" />
+			</xacro:if>
+			<xacro:property name="taxeldata_file" value="${C:/Users/aryan/OneDrive/Documents/Python/PPOTrainedProsthetics/human_hand + '/model/'+layout+side+'.yaml')}"/>
+			<!-- load taxeldata dictionary (positions + orientations) of taxel normals from file if available, else None -->
+			<xacro:property name="taxel_data" value="${None}"/>
+			<xacro:if value="${taxeldata_file not in ['', '-']}">
+				<xacro:property name="taxel_data" value="${xacro.load_yaml(taxeldata_file)}" />
+			</xacro:if>
+		</xacro:if>
+
+		<!-- left/right hand model-->
+		<xacro:property name="reflect" value="${dict(right=1, left=-1)[side]}" />
+
+		<!-- PALM -->
+
+		<joint name="${joint_prefix}palm_joint" type="fixed" >
+			<xacro:insert_block name="origin"/>
+			<parent link="${parent}" />
+			<child link="${link_prefix}palm_link" />
+		</joint>
+
+		<link name="${link_prefix}palm_link">
+			<visual>
+				<geometry>
+					<mesh filename="C:/Users/aryan/OneDrive/Documents/Python/PPOTrainedProsthetics/human_hand/model/meshes/palm.stl"
+					      scale="${scale_factor*0.001*reflect} ${scale_factor*0.001} ${scale_factor*0.001}" />
+				</geometry>
+				<material name="HumanHand/Skin" />
+			</visual>
+		</link>
+
+		<xacro:if value="${use_synergy}">
+			<xacro:property name="synergy_joint" value="${joint_prefix}synergy_joint"/>
+			<!-- SYNERGY JOINT -->
+
+			<joint name="${synergy_joint}" type="revolute">
+				<parent link="${link_prefix}palm_link" />
+				<child link="${link_prefix}dummy_synergy_link"/>
+				<axis xyz="0 0 1" />
+
+				<xacro:property name="props" value="${properties['joints']['synergy']}"/>
+				<limit lower="${props['bounds'][0]}" upper="${props['bounds'][1]}"
+				       effort="${props['effort']}" velocity="${props['velocity']}"/>
+				<dynamics damping="${props['damping']}" friction="${props['friction']}"/>
+			</joint>
+			<link name="${link_prefix}dummy_synergy_link"/>
+		</xacro:if>
+
+		<!-- THUMB AND FINGERS -->
+
+		<xacro:thumb parent="palm_link" finger="thumb">
+			<origin xyz="${0.02475*reflect*scale_factor} ${-0.0125*scale_factor} ${0.0125*scale_factor}" rpy="0.0 ${0.6240*reflect} 0"/>
+		</xacro:thumb>
+
+		<xacro:finger parent="palm_link" finger="index">
+			<origin xyz="${0.02175*reflect*scale_factor} ${-0.002*scale_factor} ${0.099*scale_factor}" rpy="0 0 0"/>
+		</xacro:finger>
+
+		<xacro:finger parent="palm_link" finger="middle">
+			<origin xyz="${-0.002*reflect*scale_factor} ${0.0015*scale_factor} ${0.0955*scale_factor}" rpy="0 0 0"/>
+		</xacro:finger>
+
+		<xacro:finger parent="palm_link" finger="ring">
+			<origin xyz="${-0.02225*reflect*scale_factor} ${0.0010*scale_factor} ${0.090*scale_factor}" rpy="0 0 0"/>
+		</xacro:finger>
+
+		<xacro:finger parent="palm_link" finger="little">
+			<origin xyz="${-0.04175*reflect*scale_factor} ${-0.003*scale_factor} ${0.079*scale_factor}" rpy="0 0 0"/>
+		</xacro:finger>
+
+		<!-- TACTILE MARKERS -->
+
+		<xacro:if value="${mapping is not None}">
+			<xacro:include filename="C:/Users/aryan/OneDrive/Documents/Python/PPOTrainedProsthetics/human_hand/model/tactile_markers.urdf.xacro"/>
+			<xacro:tactile_glove prefix="${link_prefix}" reflect="${reflect}" scale_factor="${scale}"
+			                     tactMap="${mapping}" tactData="${taxel_data}" channel="${tactile_channel}"/>
+		</xacro:if>
+	</xacro:macro>
+
+</robot>
